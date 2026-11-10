@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ca">
+    <head>
+        <meta charset="UTF-8">
+        <title>Joc Multijugador</title>
+        <style>
+            canvas { border: 2px solid #333; background: #eee; }
+            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+            #boto-reiniciar { padding: 10px 20px; font-size: 16px; cursor: pointer; display: none; margin-bottom: 10px; background-color: #4CAF50; color: white; border: none; border-radius: 5px;}
+        </style>
+    </head>
+    
+    <body>
+        <h2>Benvingut, Jugador_{PLAYER_ID}</h2>
+        <h3 style="margin-top: 0;">Codi de la Sala: <span id="display-lobby-code" style="color: blue;">Cap</span></h3>
+        <p>Latència calculada: <span id="ping">0</span> ms</p>
+        
+        <div style="height: 40px;">
+            <h3 id="missatge-victoria" style="color: red; margin: 0;"></h3>
+        </div>
+        <button id="boto-reiniciar">Tornar a començar</button>
+        
+        <canvas id="jocCanvas" width="800" height="600"></canvas>
+
+        <script>
+            const el_meu_id = {PLAYER_ID_JS};
+        </script>
+        <script src="./client_game.js"></script>
+    </body>
+</html>

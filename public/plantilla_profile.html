@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+<head>
+    <meta charset="utf-8">
+    <title>{SITE_NAME} :: Perfil</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="/favicon.png">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <script defer src="el_meu.js"></script>
+</head>
+<body>
+    <main>
+        <header>
+            <h1><a href="/">{SITE_NAME}</a></h1>
+            <div>{FEEDBACK}</div>
+        </header>
+
+        <!-- Formulari per actualitzar l'àlies -->
+        <section>
+            <form method="{METHOD}" action="/?page=profile">
+                <header>
+                    <h2>Configuració d'usuari</h2>
+                </header>
+                <p>Usuari: <b>{PROFILE_USERNAME}</b></p>
+                <label for="user_alias">Àlies</label>
+                <input id="user_alias" type="text" name="user_alias" value="{PROFILE_ALIAS}" maxlength="30" />
+                <input type="submit" name="update_profile" value="Guardar canvis" />
+            </form>
+        </section>
+
+        <!-- Formulari d'eliminació de compte -->
+        <section>
+            <form method="{METHOD}" action="/?page=profile" onsubmit="return confirm('Segur que vols eliminar el teu compte? Aquesta acció no es pot desfer.');">
+                <header>
+                    <h2>Zona de perill</h2>
+                </header>
+                <p>Per confirmar la supressió del compte, introdueix la teva contrasenya:</p>
+                <label for="delete_password">Contrasenya</label>
+                <input id="delete_password" type="password" name="user_password" required />
+                <input type="submit" name="delete_account" value="Eliminar el meu compte" style="background-color: #d9534f; color: white;" />
+            </form>
+        </section>
+
+        <section>
+            <div>
+                <a href="/">Tornar a l'inici</a>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
