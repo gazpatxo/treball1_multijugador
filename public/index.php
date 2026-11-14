@@ -4,6 +4,23 @@ session_start();
 $template = 'home';
 $db_connection = 'sqlite:..\private\users.db';
 
+// Inicialització i actualització automàtica de la base de dades
+try {
+    $db_init = new PDO($db_connection);
+    $db_init->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    $db_init->exec("CREATE TABLE IF NOT EXISTS users (
+        user_name VARCHAR(64) PRIMARY KEY,
+        user_password VARCHAR(255) NOT NULL,
+        user_alias VARCHAR(64),
+        user_email VARCHAR(254)
+    )");
+    
+    $db_init->exec("ALTER TABLE users ADD COLUMN user_email VARCHAR(254)");
+} catch (PDOException $e) {
+    // Ignorem si la columna user_email ja existeix
+}
+
 // Sincronització de la sessió amb la galeta del joc
 if (isset($_SESSION['user_name'])) {
     setcookie('jugador_sessio', $_SESSION['user_name'], time() + 3600, "/");
@@ -46,8 +63,8 @@ function verify_session($password) {
     return $result_row && password_verify($password, $result_row->user_password);
 }
 
-// --- REGISTRE ---
 if (!isset($_SESSION['user_name'])) {
+    // --- REGISTRE ---
     if (isset($parameters['register'])) {
         if (empty($parameters['user_name']) || empty($parameters['user_password'])) {
             $template = 'register';
@@ -55,22 +72,39 @@ if (!isset($_SESSION['user_name'])) {
             $configuration['{FEEDBACK}'] = '<mark>ERROR: Usuari o contrasenya no vàlides</mark>';
         } else {
             $db = new PDO($db_connection);
-            $sql = 'SELECT * FROM users WHERE user_name = :user_name';
-            $query = $db->prepare($sql);
-            $query->bindValue(':user_name', $parameters['user_name']);
+            $email = trim($parameters['user_email'] ?? '');
+
+            if (!empty($email)) {
+                $sql = 'SELECT * FROM users WHERE user_name = :user_name OR user_email = :user_email';
+                $query = $db->prepare($sql);
+                $query->bindValue(':user_name', $parameters['user_name']);
+                $query->bindValue(':user_email', $email);
+            } else {
+                $sql = 'SELECT * FROM users WHERE user_name = :user_name';
+                $query = $db->prepare($sql);
+                $query->bindValue(':user_name', $parameters['user_name']);
+            }
+
             $query->execute();
             $result_row = $query->fetchObject();
+
             if ($result_row) {
                 $template = 'register';
                 $configuration['{REGISTER_USERNAME}'] = $parameters['user_name'];
-                $configuration['{FEEDBACK}'] = '<mark>ERROR: Usuari ja registrat</mark>';
+                if ($result_row->user_name === $parameters['user_name']) {
+                    $configuration['{FEEDBACK}'] = '<mark>ERROR: El nom d\'usuari ja està registrat</mark>';
+                } else {
+                    $configuration['{FEEDBACK}'] = '<mark>ERROR: Aquest correu electrònic ja està en ús</mark>';
+                }
             } else {
                 $hashed_password = password_hash($parameters['user_password'], PASSWORD_ARGON2I);
-                $sql = 'INSERT INTO users (user_name, user_password, user_alias) VALUES (:user_name, :user_password, :user_alias)';
+                $sql = 'INSERT INTO users (user_name, user_password, user_alias, user_email) VALUES (:user_name, :user_password, :user_alias, :user_email)';
                 $query = $db->prepare($sql);
                 $query->bindValue(':user_name', $parameters['user_name']);
                 $query->bindValue(':user_alias', $parameters['user_name']);
                 $query->bindValue(':user_password', $hashed_password);
+                $query->bindValue(':user_email', $email);
+
                 if ($query->execute()) {
                     $_SESSION['user_name'] = $parameters['user_name'];
                     setcookie('jugador_sessio', $_SESSION['user_name'], time() + 3600, "/");
@@ -79,6 +113,7 @@ if (!isset($_SESSION['user_name'])) {
                 }
             }
         }
+
     // --- LOGIN ---
     } else if (isset($parameters['login'])) {
         $db = new PDO($db_connection);
@@ -99,57 +134,63 @@ if (!isset($_SESSION['user_name'])) {
             $configuration['{FEEDBACK}'] = '<mark>ERROR: Usuari o contrasenya incorrectes</mark>';
         }
     }
+
 } else {
-    // --- ACTUALITZAR DADES ---
+    // --- ACTUALITZAR ÀLIES ---
     if (isset($parameters['update_profile'])) {
         $db = new PDO($db_connection);
-        $sql = 'UPDATE users SET user_alias = :user_alias, user_email = :user_email WHERE user_name = :user_name';
+        $sql = 'UPDATE users SET user_alias = :user_alias WHERE user_name = :user_name';
         $query = $db->prepare($sql);
-        $query->bindValue(':user_alias', trim($parameters['user_alias']));
-        $query->bindValue(':user_email', trim($parameters['user_email']));
+        $query->bindValue(':user_alias', trim($parameters['user_alias'] ?? ''));
         $query->bindValue(':user_name', $_SESSION['user_name']);
         
         $template = 'profile';
         if ($query->execute()) {
-            $configuration['{FEEDBACK}'] = 'Perfil actualitzat correctament.';
+            $configuration['{FEEDBACK}'] = 'Àlies actualitzat correctament.';
         } else {
-            $configuration['{FEEDBACK}'] = '<mark>ERROR: No s\'ha pogut actualitzar el perfil.</mark>';
+            $configuration['{FEEDBACK}'] = '<mark>ERROR: No s\'ha pogut actualitzar l\'àlies.</mark>';
         }
-    } else if (isset($parameters['delete_account'])) {
-        if (verify_session($parameters['user_password'])) {
-            $db = new PDO($db_connection);
-            $sql = 'DELETE FROM users WHERE user_name = :user_name';
-            $query = $db->prepare($sql);
-            $query->bindValue(':user_name', $_SESSION['user_name']);
-            $query->execute();
-            
-            $deleted_user = $_SESSION['user_name'];
-            $_SESSION = array();
-            session_destroy();
-            setcookie('jugador_sessio', '', time() - 3600, "/");
-            $template = 'home';
-            $configuration['{FEEDBACK}'] = 'S\'ha eliminat el compte <b>' . htmlentities($deleted_user) . '</b> correctament.';
-        } else {
-            $template = 'profile';
-            $configuration['{FEEDBACK}'] = '<mark>ERROR: Contrasenya incorrecta. No s\'ha pogut eliminar el compte.</mark>';
-        }
-    } else if (isset($parameters['change_password_account'])) {
-        if (verify_session($parameters['user_old_password'])) {
-            $db = new PDO($db_connection);
-            $sql = 'UPDATE users SET user_password = :user_new_password WHERE user_name = :user_name';
-            $query = $db->prepare($sql);
-            $query->bindValue(':user_name', $_SESSION['user_name']);
-            $query->bindValue(':user_new_password', password_hash($parameters['user_new_password'], PASSWORD_ARGON2I));
 
-            if ($query->execute()) {
-                $configuration['{FEEDBACK}'] = 'Contrasenya modificada correctament.';
-            } else {
-                $configuration['{FEEDBACK}'] = '<mark>ERROR: No s\'ha pogut actualitzar la contrasenya.</mark>';
-            }
-        } else {
-            $configuration['{FEEDBACK}'] = '<mark>ERROR: Contrasenya incorrecta.</mark>';
-        }
+    // --- ACTUALITZAR CORREU (AMB CONTRASENYA) ---
+    } else if (isset($parameters['update_email'])) {
         $template = 'profile';
+        $new_email = trim($parameters['user_email'] ?? '');
+        $password = $parameters['user_password'] ?? '';
+
+        if (!verify_session($password)) {
+            $configuration['{FEEDBACK}'] = '<mark>ERROR: Contrasenya incorrecta. No s\'ha pogut canviar el correu.</mark>';
+        } else if (!empty($new_email) && !filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+            $configuration['{FEEDBACK}'] = '<mark>ERROR: El format del correu electrònic no és vàlid.</mark>';
+        } else {
+            $db = new PDO($db_connection);
+
+            $email_duplicat = false;
+            if (!empty($new_email)) {
+                $sql_check = 'SELECT user_name FROM users WHERE user_email = :user_email AND user_name != :user_name';
+                $query_check = $db->prepare($sql_check);
+                $query_check->bindValue(':user_email', $new_email);
+                $query_check->bindValue(':user_name', $_SESSION['user_name']);
+                $query_check->execute();
+                if ($query_check->fetchObject()) {
+                    $email_duplicat = true;
+                }
+            }
+
+            if ($email_duplicat) {
+                $configuration['{FEEDBACK}'] = '<mark>ERROR: Aquest correu electrònic ja està en ús per un altre compte.</mark>';
+            } else {
+                $sql = 'UPDATE users SET user_email = :user_email WHERE user_name = :user_name';
+                $query = $db->prepare($sql);
+                $query->bindValue(':user_email', $new_email);
+                $query->bindValue(':user_name', $_SESSION['user_name']);
+
+                if ($query->execute()) {
+                    $configuration['{FEEDBACK}'] = 'Correu electrònic actualitzat correctament.';
+                } else {
+                    $configuration['{FEEDBACK}'] = '<mark>ERROR: No s\'ha pogut actualitzar el correu electrònic.</mark>';
+                }
+            }
+        }
     }
 }
 
@@ -165,10 +206,7 @@ if (isset($parameters['page'])) {
         $configuration['{LOGIN_USERNAME}'] = '';
     } else if ($parameters['page'] == 'profile' && isset($_SESSION['user_name'])) {
         $template = 'profile';
-        
     } else if ($parameters['page'] == 'game') {
-        
-        //redireccionem si no hi ha sessio
         if (!isset($_SESSION['user_name'])) {
             header('Location: /?page=login');
             exit;
@@ -186,12 +224,10 @@ if (isset($parameters['page'])) {
         $html_game = str_replace(array_keys($configuration_game), array_values($configuration_game), $html_game);
         echo $html_game;
         exit;
-        
     } else if ($parameters['page'] == 'logout' && isset($_SESSION['user_name'])) {
         $_SESSION = array();
         session_destroy();
-        //eliminem cookie
-        setcookie('jugador_sessio', '', time() - 3600, "/"); 
+        setcookie('jugador_sessio', '', time() - 3600, "/");
     }
 }
 
@@ -207,7 +243,7 @@ if ($template == 'profile' && isset($_SESSION['user_name'])) {
     if ($user) {
         $configuration['{PROFILE_USERNAME}'] = htmlentities($user->user_name);
         $configuration['{PROFILE_ALIAS}'] = htmlentities($user->user_alias ?? '');
-        $configuration['{PROFILE_EMAIL}'] = htmlentities($user->user_email ?? '');        
+        $configuration['{PROFILE_EMAIL}'] = htmlentities($user->user_email ?? '');
     }
 }
 
@@ -215,7 +251,7 @@ if ($template == 'profile' && isset($_SESSION['user_name'])) {
 if (isset($_SESSION['user_name'])) {
     $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar sessió';
     $configuration['{LOGIN_LOGOUT_URL}']  = '/?page=logout';
-    $configuration['{REGISTER_SECTION}']  = ''; 
+    $configuration['{REGISTER_SECTION}']  = '';
     $configuration['{PROFILE_SECTION}']   = '<section><div><a href="/?page=profile">Configuració del perfil</a></div></section>' .
                                             '<section><div><a href="/?page=game">Entrar al Joc Multijugador</a></div></section>';
 
@@ -223,6 +259,7 @@ if (isset($_SESSION['user_name'])) {
         $configuration['{FEEDBACK}'] = 'Sessió iniciada com <b>' . htmlentities($_SESSION['user_name']) . '</b>';
     }
 }
+
 $html = file_get_contents('plantilla_' . $template . '.html', true);
 $html = str_replace(array_keys($configuration), array_values($configuration), $html);
 echo $html;

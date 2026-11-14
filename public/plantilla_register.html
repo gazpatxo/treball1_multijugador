@@ -32,6 +32,14 @@
                 <label for="register_password">Contrasenya</label>
                 <input id="register_password" type="password" name="user_password" value="{REGISTER_PASSWORD}" minlength="{MIN_PWD_LENGTH}" required maxlength="{MAX_LENGTH}" pattern="(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]+" 
                         title="La contrasenya ha de tenir entre 15 i 64 caràcters, contenir almenys una lletra i un número, i només pot incloure lletres i números (sense espais ni símbols)." />
+                <label for="user_email">E-Mail</label>
+                <input id="user_email" 
+                    type="email" 
+                    name="user_email" 
+                    value="{PROFILE_EMAIL}" 
+                    maxlength="254" 
+                    pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}" 
+                    title="Introdueix un correu electrònic vàlid (ex: usuari@domini.cat)" />
                 <input type="submit" name="register" value="Crear compte" />
             </form>
         </section>

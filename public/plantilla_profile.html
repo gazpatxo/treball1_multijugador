@@ -10,37 +10,82 @@
     <script defer src="el_meu.js"></script>
 </head>
 <body>
-    <main>
+   <main>
         <header>
             <h1><a href="/">{SITE_NAME}</a></h1>
             <div>{FEEDBACK}</div>
         </header>
 
-        <!-- Formulari per actualitzar l'àlies -->
-        <section>
-            <form method="{METHOD}" action="/?page=profile">
-                <header>
-                    <h2>Configuració d'usuari</h2>
-                </header>
-                <p>Usuari: <b>{PROFILE_USERNAME}</b></p>
-                <label for="user_alias">Àlies</label>
-                <input id="user_alias" type="text" name="user_alias" value="{PROFILE_ALIAS}" maxlength="30" />
-                <input type="submit" name="update_profile" value="Guardar canvis" />
-            </form>
-        </section>
+        <div class="profile-panel">
+            <!-- Formulari per actualitzar només l'àlies -->
+            <section>
+                <form method="{METHOD}" action="">
+                    <header>
+                        <h2>Dades d'usuari</h2>
+                    </header>
+                    <p>Usuari: <b>{PROFILE_USERNAME}</b></p>
 
-        <!-- Formulari d'eliminació de compte -->
-        <section>
-            <form method="{METHOD}" action="/?page=profile" onsubmit="return confirm('Segur que vols eliminar el teu compte? Aquesta acció no es pot desfer.');">
-                <header>
-                    <h2>Zona de perill</h2>
-                </header>
-                <p>Per confirmar la supressió del compte, introdueix la teva contrasenya:</p>
-                <label for="delete_password">Contrasenya</label>
-                <input id="delete_password" type="password" name="user_password" required />
-                <input type="submit" name="delete_account" value="Eliminar el meu compte" style="background-color: #d9534f; color: white;" />
-            </form>
-        </section>
+                    <label for="user_alias">Àlies</label>
+                    <input id="user_alias" type="text" name="user_alias" value="{PROFILE_ALIAS}" maxlength="{MAX_LENGTH}" />
+
+                    <input type="submit" name="update_profile" value="Guardar àlies" />
+                </form>
+            </section>
+
+            <!-- Formulari protegit per canviar el correu electrònic -->
+            <section>
+                <form method="{METHOD}" action="">
+                    <header>
+                        <h2>Canvia el correu electrònic</h2>
+                    </header>
+
+                    <label for="user_email">Nou E-Mail</label>
+                    <input id="user_email" type="email" name="user_email" value="{PROFILE_EMAIL}" maxlength="254"
+                           pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
+                           title="Introdueix un correu electrònic vàlid (ex: usuari@domini.cat)" />
+
+                    <label for="email_password">Contrasenya actual</label>
+                    <input id="email_password" type="password" name="user_password" required />
+
+                    <input type="submit" name="update_email" value="Actualitzar correu" />
+                </form>
+            </section>
+        </div>
+
+        <div class="profile-panel">
+            <!-- Formulari de canvi de contrasenya -->
+            <section>
+                <form method="{METHOD}" action="">
+                    <header>
+                        <h2>Canvia la contrasenya</h2>
+                    </header>
+
+                    <label for="change_password">Contrasenya anterior</label>
+                    <input id="change_password" type="password" name="user_old_password" required />
+
+                    <label for="change_password_new">Contrasenya nova</label>
+                    <input id="register_password" type="password" name="user_new_password" value="{REGISTER_PASSWORD}" minlength="{MIN_PWD_LENGTH}" required maxlength="{MAX_LENGTH}" pattern="(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]+" 
+                           title="La contrasenya ha de tenir entre 15 i 64 caràcters, contenir almenys una lletra i un número, i només pot incloure lletres i números (sense espais ni símbols)." />
+                
+                    <input type="submit" name="change_password_account" value="Modificar contrasenya" />
+                </form>
+            </section>
+            
+            <!-- Formulari d'eliminació de compte -->
+            <section>
+                <form method="{METHOD}" action="" onsubmit="return confirm('Segur que vols eliminar el teu compte? Aquesta acció no es pot desfer.');">
+                    <header>
+                        <h2>Zona de perill</h2>
+                    </header>
+                    <p>Per confirmar la supressió del compte, introdueix la teva contrasenya:</p>
+
+                    <label for="delete_password">Contrasenya</label>
+                    <input id="delete_password" type="password" name="user_password" required />
+
+                    <input type="submit" name="delete_account" value="Eliminar el meu compte" style="background-color: #d9534f; color: white;" />
+                </form>
+            </section>
+        </div>
 
         <section>
             <div>
