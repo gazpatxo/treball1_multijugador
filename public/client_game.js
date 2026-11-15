@@ -1,6 +1,8 @@
 const canvas = document.getElementById('jocCanvas');
 const ctx = canvas.getContext('2d');
 
+const SERVER_URL = 'servidor.php';
+
 console.log(el_meu_id);
 
 let cell_size = 50; 
@@ -19,75 +21,153 @@ let lobby_code = null; // NUEVO: Variable para guardar el código de la sala
 // Cambiar a latencia mitjana dels ultims n valors
 // Fer que tothom vegi la latencia de tothom
 async function mesurarLatencia() {
-    if (!lobby_code) return; // Detener si no hay sala
+    if (!lobby_code) return;
+
     const inici = Date.now();
-    await fetch(`partida_${lobby_code}.json?t=${inici}`); // Buscar el archivo de la sala privada
-    latencia = Date.now() - inici;
-    document.getElementById('ping').innerText = latencia;
+
+    try {
+        const resposta = await fetch(
+            `${SERVER_URL}?lobby=${encodeURIComponent(lobby_code)}&accio=ping&t=${inici}`,
+            { cache: 'no-store' }
+        );
+
+        if (resposta.ok) {
+            latencia = Date.now() - inici;
+            document.getElementById('ping').innerText = latencia;
+        }
+    } catch (e) {
+        console.error("Error mesurant latència:", e);
+    }
 }
 setInterval(mesurarLatencia, 1000);
 
 async function sincronitzarEstat() {
-    if (!lobby_code) return; // Detener si no hay sala
+    if (!lobby_code) return;
+
     try {
-        const resposta = await fetch(`partida_${lobby_code}.json?t=${Date.now()}`);
-        if (!resposta.ok) return; // Evitar errores si el archivo aún no se ha creado
-        
+        const resposta = await fetch(
+            `${SERVER_URL}?lobby=${encodeURIComponent(lobby_code)}&accio=sincronitzar&t=${Date.now()}`,
+            { cache: 'no-store' }
+        );
+
+        if (resposta.status === 410) {
+            alert("La sala ha caducat per inactivitat.");
+            lobby_code = null;
+            estat_joc = null;
+            pos_local = { x: null, y: null };
+            return;
+        }
+
+        if (!resposta.ok) {
+            console.error("Error del servidor:", resposta.status);
+            return;
+        }
+
         estat_joc = await resposta.json();
-        
-        // Adoptar coordenades del servidor si no en tenim de predites
-        if (pos_local.x === null && estat_joc.jugadors[el_meu_id]) {
+
+        if (estat_joc.error) {
+            console.error(estat_joc.error);
+            return;
+        }
+
+        if (
+            pos_local.x === null &&
+            estat_joc.jugadors[el_meu_id]
+        ) {
             pos_local.x = estat_joc.jugadors[el_meu_id].x;
             pos_local.y = estat_joc.jugadors[el_meu_id].y;
         }
 
         if (estat_joc.guanyador) {
-            document.getElementById('missatge-victoria').innerText = "El guanyador és: " + estat_joc.guanyador;
+
+            document.getElementById('missatge-victoria').innerText =
+                "El guanyador és: " + estat_joc.guanyador;
+
             document.getElementById('boto-reiniciar').style.display = 'block';
+
             havia_guanyador = true;
+
         } else {
+
             document.getElementById('missatge-victoria').innerText = "";
+
             document.getElementById('boto-reiniciar').style.display = 'none';
-            
-            // Si abans hi havia guanyador i ara no, algú ha reiniciat la partida.
-            // Resegem la nostra posició local perquè forci l'actualització amb l'spawn del servidor.
+
             if (havia_guanyador) {
                 pos_local = { x: null, y: null };
                 havia_guanyador = false;
             }
         }
-    } catch (e) { console.error("Error sincronitzant", e); }
+
+    } catch (e) {
+        console.error("Error sincronitzant:", e);
+    }
 }
 setInterval(sincronitzarEstat, 100); 
 
 // Botó de reiniciar
 document.getElementById('boto-reiniciar').addEventListener('click', async () => {
+
     if (!lobby_code) return;
-    await fetch('servidor.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accio: 'reiniciar', lobby: lobby_code }) // Enviar el código al reiniciar
-    });
-    pos_local = { x: null, y: null };
+
+    try {
+        const resposta = await fetch(SERVER_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                accio: 'reiniciar',
+                lobby: lobby_code
+            })
+        });
+
+        const data = await resposta.json();
+
+        if (!resposta.ok || data.error) {
+            console.error("Error reiniciant:", data.error);
+            return;
+        }
+
+        estat_joc = data;
+        pos_local = { x: null, y: null };
+
+    } catch (e) {
+        console.error("Error reiniciant la partida:", e);
+    }
 });
 
 async function enviarMoviment() {
+
     if (estat_joc && estat_joc.guanyador) return;
-    const timestamp_just = Date.now() - latencia; 
-    
-    // Añadir el código de la sala en el envío de movimiento
-    const payload = { 
-        x: pos_local.x, 
-        y: pos_local.y, 
+    if (pos_local.x === null || !lobby_code) return;
+
+    const timestamp_just = Date.now() - latencia;
+
+    const payload = {
+        accio: 'moviment',
+        x: pos_local.x,
+        y: pos_local.y,
         timestamp: timestamp_just,
-        lobby: lobby_code 
+        lobby: lobby_code
     };
 
-    await fetch('servidor.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
+    try {
+        const resposta = await fetch(SERVER_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!resposta.ok) {
+            console.error("Error enviant moviment:", resposta.status);
+        }
+
+    } catch (e) {
+        console.error("Error enviant moviment:", e);
+    }
 }
 
 window.addEventListener('keydown', (e) => {
@@ -184,13 +264,13 @@ function caixes_colisionen(a_x, a_y, a_sx, a_sy, b_x, b_y, b_sx, b_sy) {
 
 // Menú de selección de Lobby
 function mostrarMenuLobby() {
-    const accions_valides = ('C', 'U');
+    const accions_valides = ['C', 'U'];
     
     let tipus_accio = '';
     while(tipus_accio === ''){
         const accio = prompt("Escriu 'C' per Crear una sala nova, o 'U' per Unir-te a una existent:");
-        if (accio && accio.toUpperCase() in accions_valides) {
-            tipus_accio = accio_paraula;
+        if (accio && accions_valides.includes(accio.toUpperCase())) {
+            tipus_accio = accio.toUpperCase();
         } else {
             alert("Acció no vàlida.");
         }
@@ -233,27 +313,40 @@ function joinPartida(){
 
 // Iniciar la partida después de introducir/crear el lobby
 async function iniciarPartidaLobby() {
+
     try {
-        const resposta = await fetch('servidor.php', {
+
+        const resposta = await fetch(SERVER_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lobby: lobby_code })
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                accio: 'entrar',
+                lobby: lobby_code
+            })
         });
 
         const data = await resposta.json();
-        
-        if (data.error) {
-            alert("Error: " + data.error);
+
+        if (!resposta.ok || data.error) {
+            alert("Error: " + (data.error || resposta.status));
             lobby_code = null;
             return;
         }
 
         estat_joc = data;
+
+        pos_local = { x: null, y: null };
+
         await sincronitzarEstat();
+
         dibuixar();
 
     } catch (error) {
+
         console.error('Error al iniciar el juego:', error);
+
     }
 }
 
