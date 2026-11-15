@@ -2,7 +2,8 @@
 session_start();
 
 $template = 'home';
-$db_connection = 'sqlite:..\private\users.db';
+$db_Path = __DIR__ . '/../private/users.db';
+$db_connection = 'sqlite:' . $db_Path;
 
 // Inicialització i actualització automàtica de la base de dades
 try {
@@ -97,7 +98,7 @@ if (!isset($_SESSION['user_name'])) {
                     $configuration['{FEEDBACK}'] = '<mark>ERROR: Aquest correu electrònic ja està en ús</mark>';
                 }
             } else {
-                $hashed_password = password_hash($parameters['user_password'], PASSWORD_ARGON2I);
+                $hashed_password = password_hash($parameters['user_password'], PASSWORD_BCRYPT);
                 $sql = 'INSERT INTO users (user_name, user_password, user_alias, user_email) VALUES (:user_name, :user_password, :user_alias, :user_email)';
                 $query = $db->prepare($sql);
                 $query->bindValue(':user_name', $parameters['user_name']);

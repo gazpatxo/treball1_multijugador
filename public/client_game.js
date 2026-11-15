@@ -184,33 +184,50 @@ function caixes_colisionen(a_x, a_y, a_sx, a_sy, b_x, b_y, b_sx, b_sy) {
 
 // Menú de selección de Lobby
 function mostrarMenuLobby() {
-    const accio = prompt("Escriu 'C' per Crear una sala nova, o 'U' per Unir-te a una existent:");
+    const accions_valides = ('C', 'U');
     
-    if (accio && accio.toUpperCase() === 'C') {
-        lobby_code = Math.random().toString(36).substring(2, 6).toUpperCase();
-        alert("El teu codi de sala és: " + lobby_code + "\nComparteix-lo amb el teu amic.");
+    let tipus_accio = '';
+    while(tipus_accio === ''){
+        const accio = prompt("Escriu 'C' per Crear una sala nova, o 'U' per Unir-te a una existent:");
+        if (accio && accio.toUpperCase() in accions_valides) {
+            tipus_accio = accio_paraula;
+        } else {
+            alert("Acció no vàlida.");
+        }
+    }
+
+    if (tipus_accio === 'C'){
+        hostPartida();
+    } else if (tipus_accio === 'U') {
+        joinPartida();
+    }
+
+}
+
+function hostPartida(){
+    lobby_code = Math.random().toString(36).substring(2, 6).toUpperCase();
+    alert("El teu codi de sala és: " + lobby_code + "\nComparteix-lo amb el teu amic.");
+    
+    // Forma SEGURA de actualizar el HTML
+    const displayCode = document.getElementById('display-lobby-code');
+    if (displayCode) { displayCode.innerText = lobby_code; }
+    
+    iniciarPartidaLobby();
+}
+
+function joinPartida(){
+    const codi = prompt("Introdueix el codi de la sala:");
+    if (codi) {
+        lobby_code = codi.toUpperCase();
         
         // Forma SEGURA de actualizar el HTML
         const displayCode = document.getElementById('display-lobby-code');
         if (displayCode) { displayCode.innerText = lobby_code; }
         
         iniciarPartidaLobby();
-        
-    } else if (accio && accio.toUpperCase() === 'U') {
-        const codi = prompt("Introdueix el codi de la sala:");
-        if (codi) {
-            lobby_code = codi.toUpperCase();
-            
-            // Forma SEGURA de actualizar el HTML
-            const displayCode = document.getElementById('display-lobby-code');
-            if (displayCode) { displayCode.innerText = lobby_code; }
-            
-            iniciarPartidaLobby();
-        } else {
-            alert("No has introduït cap codi.");
-        }
     } else {
-        alert("Acció no vàlida. Recarrega la pàgina.");
+        alert("No has introduït cap codi.");
+        mostrarMenuLobby();
     }
 }
 
