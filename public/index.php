@@ -32,12 +32,12 @@ $configuration = array(
     '{LOGIN_USERNAME}'    => '',
     '{REGISTER_PASSWORD}' => '',
     '{LOGIN_LOGOUT_TEXT}' => 'Identificar-me',
-    '{LOGIN_LOGOUT_URL}'  => '/?page=login',
+    '{LOGIN_LOGOUT_URL}'  => '?page=login',
     '{METHOD}'            => 'POST',
-    '{REGISTER_URL}'      => '/?page=register',
+    '{REGISTER_URL}'      => '?page=register',
     '{MIN_PWD_LENGTH}'    => '15',
     '{MAX_LENGTH}'        => '64',
-    '{REGISTER_SECTION}'  => '<section><div><a href="/?page=register">Registrar-me</a></div></section>',
+    '{REGISTER_SECTION}'  => '<section><div><a href="?page=register">Registrar-me</a></div></section>',
     '{PROFILE_SECTION}'   => '',
     '{GAME_SECTION}'      => '',
     '{PROFILE_USERNAME}'  => '',
@@ -208,7 +208,7 @@ if (isset($parameters['page'])) {
         $template = 'profile';
     } else if ($parameters['page'] == 'game') {
         if (!isset($_SESSION['user_name'])) {
-            header('Location: /?page=login');
+            header('Location: ?page=login');
             exit;
         }
 
@@ -250,10 +250,10 @@ if ($template == 'profile' && isset($_SESSION['user_name'])) {
 // Configuració d'estat per a usuaris identificats
 if (isset($_SESSION['user_name'])) {
     $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar sessió';
-    $configuration['{LOGIN_LOGOUT_URL}']  = '/?page=logout';
+    $configuration['{LOGIN_LOGOUT_URL}']  = '?page=logout';
     $configuration['{REGISTER_SECTION}']  = '';
-    $configuration['{PROFILE_SECTION}']   = '<section><div><a href="/?page=profile">Configuració del perfil</a></div></section>' .
-                                            '<section><div><a href="/?page=game">Entrar al Joc Multijugador</a></div></section>';
+    $configuration['{PROFILE_SECTION}']   = '<section><div><a href="?page=profile">Configuració del perfil</a></div></section>' .
+                                            '<section><div><a href="?page=game">Entrar al Joc Multijugador</a></div></section>';
 
     if ($template == 'home' && empty($configuration['{FEEDBACK}'])) {
         $configuration['{FEEDBACK}'] = 'Sessió iniciada com <b>' . htmlentities($_SESSION['user_name']) . '</b>';
