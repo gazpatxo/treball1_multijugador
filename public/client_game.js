@@ -267,13 +267,19 @@ function caixes_colisionen(a_x, a_y, a_sx, a_sy, b_x, b_y, b_sx, b_sy) {
             a_y + a_sy > b_y);
 }
 
-// Menú de selección de Lobby
 function mostrarMenuLobby() {
     const accions_valides = ['C', 'U'];
     
     let tipus_accio = '';
     while(tipus_accio === ''){
         const accio = prompt("Escriu 'C' per Crear una sala nova, o 'U' per Unir-te a una existent:");
+        
+        // Si el usuario pulsa "Cancelar" o cierra el popup, redirigimos al home
+        if (accio === null) {
+            window.location.href = 'index.php';
+            return;
+        }
+
         if (accio && accions_valides.includes(accio.toUpperCase())) {
             tipus_accio = accio.toUpperCase();
         } else {
@@ -286,7 +292,6 @@ function mostrarMenuLobby() {
     } else if (tipus_accio === 'U') {
         joinPartida();
     }
-
 }
 
 function hostPartida(){
@@ -301,13 +306,20 @@ function hostPartida(){
 
 function joinPartida(){
     const codi = prompt("Introdueix el codi de la sala:");
-    if (codi) {
+    
+    // Si pulsa "Cancelar" al pedir el código, también lo devolvemos al home (o al menú)
+    if (codi === null) {
+        window.location.href = 'index.php';
+        return;
+    }
+
+    if (codi.trim() !== "") {
         lobby_code = codi.toUpperCase();
         
         const displayCode = document.getElementById('display-lobby-code');
         if (displayCode) { displayCode.innerText = lobby_code; }
         
-        iniciarPartidaLobby('unir'); // <-- Enviamos 'unir'
+        iniciarPartidaLobby('unir');
     } else {
         alert("No has introduït cap codi.");
         mostrarMenuLobby();
