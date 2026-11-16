@@ -9,16 +9,59 @@
     <link rel="stylesheet" href="mvp.css">
     <link rel="stylesheet" href="el_meu.css">
     <style>
-        canvas { border: 2px solid #333; background: #eee; }
-        .game-wrapper { display: flex; flex-direction: column; align-items: center; }
-        #boto-reiniciar { padding: 10px 20px; font-size: 16px; cursor: pointer; display: none; margin-bottom: 10px; background-color: #4CAF50; color: white; border: none; border-radius: 5px;}
+        canvas { 
+            border: 2px solid #333; 
+            background: #eee; 
+            display: block;
+            margin: 0 auto;
+        }
+        
+        /* Ampliamos el contenedor principal para que quepa bien el juego de 800px */
+        main {
+            max-width: 900px !important;
+            width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .game-wrapper { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            width: 100%;
+        }
+
+        /* Aseguramos que el marcador ocupe exactamente los 800px y se centre */
+        #marcador-container {
+            width: 800px;
+            max-width: 100%;
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 10px; 
+            font-size: 20px; 
+            font-weight: bold;
+            box-sizing: border-box;
+        }
+
+        #boto-reiniciar { 
+            padding: 10px 20px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            display: none; 
+            margin-bottom: 10px; 
+            background-color: #4CAF50; 
+            color: white; 
+            border: none; 
+            border-radius: 5px;
+        }
     </style>
 </head>
 
 <body>
     <main>
         <header>
-            <h1><a href="/">{SITE_NAME}</a></h1>
+            <h1><a href="index.php">{SITE_NAME}</a></h1>
             <div>{FEEDBACK}</div>
         </header>
         <section class="game-wrapper">
@@ -32,7 +75,7 @@
             <button id="boto-reiniciar">Tornar a començar</button>
             
             <!-- Contenedor del marcador -->
-            <div id="marcador-container" style="display: flex; justify-content: space-between; width: 800px; margin-bottom: 10px; font-size: 20px; font-weight: bold;">
+            <div id="marcador-container">
                 <div id="jugador-esquerra">
                     <span id="nom-esquerra" style="color: green;">Jugador 1</span>: <span id="punts-esquerra">0</span>
                 </div>
@@ -47,7 +90,7 @@
 
         <section>
             <div>
-                <a href="/">Tornar a l'inici</a>
+                <a href="index.php">Tornar a l'inici</a>
             </div>
         </section>
     </main>

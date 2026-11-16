@@ -900,26 +900,14 @@ if (isset($parameters['page'])) {
         );
 
         $configuration_game = array(
-
-            '{PLAYER_ID}' =>
-                htmlspecialchars(
-                    $jugador_id,
-                    ENT_QUOTES,
-                    'UTF-8'
-                ),
-
-            '{PLAYER_ID_JS}' =>
-                json_encode($jugador_id)
+            '{PLAYER_ID}' => htmlspecialchars($jugador_id, ENT_QUOTES, 'UTF-8'),
+            '{PLAYER_ID_JS}' => json_encode($jugador_id),
+            '{SITE_NAME}' => $configuration['{SITE_NAME}'],
+            '{FEEDBACK}' => $configuration['{FEEDBACK}']
         );
 
-        $html_game = file_get_contents('client_page.html');
-
-        $html_game = str_replace(
-            array_keys($configuration_game),
-            array_values($configuration_game),
-            $html_game
-        );
-
+        $html_game = file_get_contents('plantilla_game.html', true);
+        $html_game = str_replace(array_keys($configuration_game), array_values($configuration_game), $html_game);
         echo $html_game;
 
         exit;
@@ -972,32 +960,13 @@ if (
 
 if (isset($_SESSION['user_name'])) {
 
-    $configuration['{LOGIN_LOGOUT_TEXT}'] =
-        'Tancar sessió';
-
-    $configuration['{LOGIN_LOGOUT_URL}'] =
-        '?page=logout';
-
-    $configuration['{REGISTER_SECTION}'] = '';
-
-    $configuration['{PROFILE_SECTION}'] =
-        '<section><div>' .
-        '<a href="?page=profile">Configuració del perfil</a>' .
-        '</div></section>' .
-
-        '<section><div>' .
-        '<a href="?page=game">Entrar al Joc Multijugador</a>' .
-        '</div></section>';
-
-    if (
-        $template == 'home' &&
-        empty($configuration['{FEEDBACK}'])
-    ) {
-
-        $configuration['{FEEDBACK}'] =
-            'Sessió iniciada com <b>' .
-            htmlentities($_SESSION['user_name']) .
-            '</b>';
+    if ($template == 'home' && empty($configuration['{FEEDBACK}'])) {
+        // Leer el parámetro de la URL para mostrar el mensaje de desconexión
+        if (isset($_GET['msg']) && $_GET['msg'] === 'desconnectat') {
+            $configuration['{FEEDBACK}'] = '<mark>Rival desconectat, tancament de la sala</mark>';
+        } else {
+            $configuration['{FEEDBACK}'] = 'Sessió iniciada com <b>' . htmlentities($_SESSION['user_name']) . '</b>';
+        }
     }
 }
 

@@ -54,9 +54,11 @@ async function sincronitzarEstat() {
 
         // Añadimos la comprobación de desconexión del oponente
         if (estat_joc.tancada) {
-            alert(estat_joc.motiu);
             lobby_code = null;
-            window.location.href = '?page=game';
+            //Mostrar el popup (el código se detiene aquí hasta que se cierra)
+            alert("El teu rival s'ha desconnectat de la partida. Seràs redirigit al menú principal.");
+            //Redirigir tras cerrar el popup
+            window.location.href = 'index.php?msg=desconnectat';
             return;
         }
         
@@ -265,13 +267,19 @@ function caixes_colisionen(a_x, a_y, a_sx, a_sy, b_x, b_y, b_sx, b_sy) {
             a_y + a_sy > b_y);
 }
 
-// Menú de selección de Lobby
 function mostrarMenuLobby() {
     const accions_valides = ['C', 'U'];
     
     let tipus_accio = '';
     while(tipus_accio === ''){
         const accio = prompt("Escriu 'C' per Crear una sala nova, o 'U' per Unir-te a una existent:");
+        
+        // Si el usuario pulsa "Cancelar" o cierra el popup, redirigimos al home
+        if (accio === null) {
+            window.location.href = 'index.php';
+            return;
+        }
+
         if (accio && accions_valides.includes(accio.toUpperCase())) {
             tipus_accio = accio.toUpperCase();
         } else {
@@ -284,38 +292,41 @@ function mostrarMenuLobby() {
     } else if (tipus_accio === 'U') {
         joinPartida();
     }
-
 }
 
 function hostPartida(){
     lobby_code = Math.random().toString(36).substring(2, 6).toUpperCase();
     alert("El teu codi de sala és: " + lobby_code + "\nComparteix-lo amb el teu amic.");
     
-    // Forma SEGURA de actualizar el HTML
     const displayCode = document.getElementById('display-lobby-code');
     if (displayCode) { displayCode.innerText = lobby_code; }
     
-    iniciarPartidaLobby();
+    iniciarPartidaLobby('crear'); // <-- Enviamos 'crear'
 }
 
-async function joinPartida(){
+function joinPartida(){
     const codi = prompt("Introdueix el codi de la sala:");
-    if (codi) {
+    
+    // Si pulsa "Cancelar" al pedir el código, también lo devolvemos al home (o al menú)
+    if (codi === null) {
+        window.location.href = 'index.php';
+        return;
+    }
+
+    if (codi.trim() !== "") {
         lobby_code = codi.toUpperCase();
         
         const displayCode = document.getElementById('display-lobby-code');
         if (displayCode) { displayCode.innerText = lobby_code; }
         
-        // Llamamos con acción 'entrar'
-        await iniciarPartidaLobby('entrar');
+        iniciarPartidaLobby('unir');
     } else {
-        alert("No hai introduït cap codi.");
+        alert("No has introduït cap codi.");
         mostrarMenuLobby();
     }
 }
 
-// Iniciar la partida después de introducir/crear el lobby
-async function iniciarPartidaLobby(accioType = 'entrar') {
+async function iniciarPartidaLobby(tipus_accio) {
     try {
         const resposta = await fetch(SERVER_URL, {
             method: 'POST',
@@ -323,7 +334,7 @@ async function iniciarPartidaLobby(accioType = 'entrar') {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                accio: accioType, // Usamos la acción correcta aquí
+                accio: tipus_accio, 
                 lobby: lobby_code
             })
         });
@@ -331,14 +342,23 @@ async function iniciarPartidaLobby(accioType = 'entrar') {
         const data = await resposta.json();
 
         if (!resposta.ok || data.error) {
-            alert("Error: " + (data.error || resposta.status));
+            alert("Error: " + (data.error || "La sala no existeix")); // Este es el popup
             lobby_code = null;
-            mostrarMenuLobby(); // Vuelve a mostrar el menú para que pueda reintentar
+            mostrarMenuLobby(); // Volvemos a mostrar el menú para que lo intente de nuevo
             return;
         }
 
         estat_joc = data;
-        pos_local = { x: null, y: null };
+        
+        // Asignación rápida de la posición local que arreglamos antes
+        if (estat_joc.jugadors && estat_joc.jugadors[el_meu_id]) {
+            pos_local = {
+                x: estat_joc.jugadors[el_meu_id].x,
+                y: estat_joc.jugadors[el_meu_id].y
+            };
+        } else {
+            pos_local = { x: null, y: null };
+        }
 
         await sincronitzarEstat();
         dibuixar();
@@ -347,7 +367,6 @@ async function iniciarPartidaLobby(accioType = 'entrar') {
         console.error('Error al iniciar el juego:', error);
     }
 }
-
 
 function actualitzarMarcador() {
     if (!estat_joc || !estat_joc.jugadors) return;
@@ -360,25 +379,49 @@ function actualitzarMarcador() {
     // Leer los puntos del JSON del servidor (si no existen, poner 0)
     const punts_j1 = (estat_joc.puntuacions && estat_joc.puntuacions[jugador1]) ? estat_joc.puntuacions[jugador1] : 0;
 
-    document.getElementById('nom-esquerra').innerText = jugador1.substring(0, 5);
-    document.getElementById('punts-esquerra').innerText = punts_j1;
+    const elNomEsquerra = document.getElementById('nom-esquerra');
+    const elPuntsEsquerra = document.getElementById('punts-esquerra');
+    if (elNomEsquerra) elNomEsquerra.innerText = jugador1.substring(0, 5);
+    if (elPuntsEsquerra) elPuntsEsquerra.innerText = punts_j1;
+
+    const elNomDreta = document.getElementById('nom-dreta');
+    const elPuntsDreta = document.getElementById('punts-dreta');
 
     if (jugador2) {
         const punts_j2 = (estat_joc.puntuacions && estat_joc.puntuacions[jugador2]) ? estat_joc.puntuacions[jugador2] : 0;
 
-        document.getElementById('nom-dreta').innerText = jugador2.substring(0, 5) + ": ";
-        document.getElementById('nom-dreta').style.color = "red";
-        document.getElementById('nom-dreta').style.fontStyle = "normal";
+        if (elNomDreta) {
+            elNomDreta.innerText = jugador2.substring(0, 5) + ": ";
+            elNomDreta.style.color = "red";
+            elNomDreta.style.fontStyle = "normal";
+        }
         
-        document.getElementById('punts-dreta').style.display = "inline";
-        document.getElementById('punts-dreta').innerText = punts_j2;
+        if (elPuntsDreta) {
+            elPuntsDreta.style.display = "inline";
+            elPuntsDreta.innerText = punts_j2;
+        }
     } else {
-        document.getElementById('nom-dreta').innerText = "Esperando segundo jugador...";
-        document.getElementById('nom-dreta').style.color = "gray";
-        document.getElementById('nom-dreta').style.fontStyle = "italic";
-        document.getElementById('punts-dreta').style.display = "none";
+        if (elNomDreta) {
+            elNomDreta.innerText = "Esperando segundo jugador...";
+            elNomDreta.style.color = "gray";
+            elNomDreta.style.fontStyle = "italic";
+        }
+        if (elPuntsDreta) {
+            elPuntsDreta.style.display = "none";
+        }
     }
 }
+
+// Avisar al servidor cuando el usuario sale de la página
+window.addEventListener('beforeunload', () => {
+    if (lobby_code) {
+        const payload = JSON.stringify({
+            accio: 'desconnectar',
+            lobby: lobby_code
+        });
+        navigator.sendBeacon(SERVER_URL, payload);
+    }
+});
 
 // Arrancar el menú al cargar en lugar del antiguo iniciarJoc()
 mostrarMenuLobby();
