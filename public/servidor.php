@@ -224,6 +224,33 @@ function start_match(&$estat) {
 // MOVIMIENTO DEL JUGADOR
 // ==================================================
 
+// ==================================================
+// ANTICHEAT: VALIDAR DISTANCIA DE MOVIMIENTO
+// ==================================================
+
+function movimiento_valido($estat, $id, $x_nuevo, $y_nuevo) {
+
+    // Posición real guardada en el servidor
+    $x_anterior = (int)$estat['jugadors'][$id]['x'];
+    $y_anterior = (int)$estat['jugadors'][$id]['y'];
+
+    // Posición solicitada
+    $x_nuevo = (int)$x_nuevo;
+    $y_nuevo = (int)$y_nuevo;
+
+    // Calcular desplazamiento
+    $distancia_x = abs($x_nuevo - $x_anterior);
+    $distancia_y = abs($y_nuevo - $y_anterior);
+
+    // Solo permitir desplazamiento de una casilla
+    // en horizontal O vertical, nunca en ambas direcciones.
+    return (
+        ($distancia_x === 1 && $distancia_y === 0) ||
+        ($distancia_x === 0 && $distancia_y === 1) ||
+        ($distancia_x === 0 && $distancia_y === 0)
+    );
+}
+
 function handle_movement(&$estat, $id, $x, $y) {
 
     $mida_x = $estat['jugadors'][$id]['size_x'] ?? 1;
@@ -449,12 +476,30 @@ try {
 
         } elseif ($is_action_movement) {
 
-            $posicio = handle_movement(
+            // ANTICHEAT: comprobar que el movimiento es válido
+            if (!movimiento_valido(
                 $estat,
                 $jugador_id,
                 $entrada['x'],
                 $entrada['y']
-            );
+            )) {
+
+                // Ignorar el movimiento sospechoso
+                $posicio = [
+                    "x" => $estat['jugadors'][$jugador_id]['x'],
+                    "y" => $estat['jugadors'][$jugador_id]['y']
+                ];
+
+            } else {
+
+                // Movimiento permitido
+                $posicio = handle_movement(
+                    $estat,
+                    $jugador_id,
+                    $entrada['x'],
+                    $entrada['y']
+                );
+            }
 
             // Mantener el sistema de timestamp del primer archivo
 
