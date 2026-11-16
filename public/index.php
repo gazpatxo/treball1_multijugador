@@ -259,7 +259,12 @@ if (isset($_SESSION['user_name'])) {
                                             '<section><div><a href="?page=game">Entrar al Joc Multijugador</a></div></section>';
 
     if ($template == 'home' && empty($configuration['{FEEDBACK}'])) {
-        $configuration['{FEEDBACK}'] = 'Sessió iniciada com <b>' . htmlentities($_SESSION['user_name']) . '</b>';
+        // Leer el parámetro de la URL para mostrar el mensaje de desconexión
+        if (isset($_GET['msg']) && $_GET['msg'] === 'desconnectat') {
+            $configuration['{FEEDBACK}'] = '<mark>Rival desconectat, tancament de la sala</mark>';
+        } else {
+            $configuration['{FEEDBACK}'] = 'Sessió iniciada com <b>' . htmlentities($_SESSION['user_name']) . '</b>';
+        }
     }
 }
 

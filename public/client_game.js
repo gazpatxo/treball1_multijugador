@@ -54,9 +54,11 @@ async function sincronitzarEstat() {
 
         // Añadimos la comprobación de desconexión del oponente
         if (estat_joc.tancada) {
-            alert(estat_joc.motiu);
             lobby_code = null;
-            window.location.href = '?page=game';
+            //Mostrar el popup (el código se detiene aquí hasta que se cierra)
+            alert("El teu rival s'ha desconnectat de la partida. Seràs redirigit al menú principal.");
+            //Redirigir tras cerrar el popup
+            window.location.href = 'index.php?msg=desconnectat';
             return;
         }
         
@@ -291,14 +293,13 @@ function hostPartida(){
     lobby_code = Math.random().toString(36).substring(2, 6).toUpperCase();
     alert("El teu codi de sala és: " + lobby_code + "\nComparteix-lo amb el teu amic.");
     
-    // Forma SEGURA de actualizar el HTML
     const displayCode = document.getElementById('display-lobby-code');
     if (displayCode) { displayCode.innerText = lobby_code; }
     
-    iniciarPartidaLobby();
+    iniciarPartidaLobby('crear'); // <-- Enviamos 'crear'
 }
 
-async function joinPartida(){
+function joinPartida(){
     const codi = prompt("Introdueix el codi de la sala:");
     if (codi) {
         lobby_code = codi.toUpperCase();
@@ -306,25 +307,22 @@ async function joinPartida(){
         const displayCode = document.getElementById('display-lobby-code');
         if (displayCode) { displayCode.innerText = lobby_code; }
         
-        // Llamamos con acción 'entrar'
-        await iniciarPartidaLobby('entrar');
+        iniciarPartidaLobby('unir'); // <-- Enviamos 'unir'
     } else {
-        alert("No hai introduït cap codi.");
+        alert("No has introduït cap codi.");
         mostrarMenuLobby();
     }
 }
 
-async function iniciarPartidaLobby(accioType = 'entrar') {
-
+async function iniciarPartidaLobby(tipus_accio) {
     try {
-
         const resposta = await fetch(SERVER_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                accio: accioType,
+                accio: tipus_accio, 
                 lobby: lobby_code
             })
         });
@@ -332,14 +330,15 @@ async function iniciarPartidaLobby(accioType = 'entrar') {
         const data = await resposta.json();
 
         if (!resposta.ok || data.error) {
-            alert("Error: " + (data.error || resposta.status));
+            alert("Error: " + (data.error || "La sala no existeix")); // Este es el popup
             lobby_code = null;
+            mostrarMenuLobby(); // Volvemos a mostrar el menú para que lo intente de nuevo
             return;
         }
 
         estat_joc = data;
-
-        // --- FORZAR LA POSICIÓN LOCAL AQUÍ MISMO ---
+        
+        // Asignación rápida de la posición local que arreglamos antes
         if (estat_joc.jugadors && estat_joc.jugadors[el_meu_id]) {
             pos_local = {
                 x: estat_joc.jugadors[el_meu_id].x,
@@ -350,16 +349,12 @@ async function iniciarPartidaLobby(accioType = 'entrar') {
         }
 
         await sincronitzarEstat();
-
         dibuixar();
 
     } catch (error) {
-
         console.error('Error al iniciar el juego:', error);
-
     }
 }
-
 
 function actualitzarMarcador() {
     if (!estat_joc || !estat_joc.jugadors) return;
@@ -404,5 +399,17 @@ function actualitzarMarcador() {
         }
     }
 }
+
+// Avisar al servidor cuando el usuario sale de la página
+window.addEventListener('beforeunload', () => {
+    if (lobby_code) {
+        const payload = JSON.stringify({
+            accio: 'desconnectar',
+            lobby: lobby_code
+        });
+        navigator.sendBeacon(SERVER_URL, payload);
+    }
+});
+
 // Arrancar el menú al cargar en lugar del antiguo iniciarJoc()
 mostrarMenuLobby();

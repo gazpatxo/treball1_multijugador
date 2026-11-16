@@ -350,7 +350,7 @@ try {
     // Si la sala no existe, solo se permite crearla
     // mediante una petición de entrada inicial.
 
-    if (!$fila && $accio !== 'entrar') {
+    if (!$fila && $accio !== 'crear') {
 
         $db->exec('ROLLBACK');
         $transaccion = false;
@@ -582,7 +582,7 @@ try {
     // Actualizar el tiempo de actividad únicamente
     // cuando la petición procede de sincronitzarEstat().
 
-    $ultimo_update = in_array($accio, ['entrar', 'sincronitzar'], true)
+    $ultimo_update = in_array($accio, ['crear', 'unir', 'sincronitzar'], true)
         ? time()
         : (int)$fila['updated_at'];
 
