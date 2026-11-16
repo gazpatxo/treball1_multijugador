@@ -218,10 +218,12 @@ if (isset($parameters['page'])) {
 
         $configuration_game = array(
             '{PLAYER_ID}' => htmlspecialchars($jugador_id, ENT_QUOTES, 'UTF-8'),
-            '{PLAYER_ID_JS}' => json_encode($jugador_id)
+            '{PLAYER_ID_JS}' => json_encode($jugador_id),
+            '{SITE_NAME}' => $configuration['{SITE_NAME}'],
+            '{FEEDBACK}' => $configuration['{FEEDBACK}']
         );
 
-        $html_game = file_get_contents('client_page.html', true);
+        $html_game = file_get_contents('plantilla_game.html', true);
         $html_game = str_replace(array_keys($configuration_game), array_values($configuration_game), $html_game);
         echo $html_game;
         exit;

@@ -314,16 +314,17 @@ async function joinPartida(){
     }
 }
 
-// Iniciar la partida después de introducir/crear el lobby
 async function iniciarPartidaLobby(accioType = 'entrar') {
+
     try {
+
         const resposta = await fetch(SERVER_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                accio: accioType, // Usamos la acción correcta aquí
+                accio: accioType,
                 lobby: lobby_code
             })
         });
@@ -333,18 +334,29 @@ async function iniciarPartidaLobby(accioType = 'entrar') {
         if (!resposta.ok || data.error) {
             alert("Error: " + (data.error || resposta.status));
             lobby_code = null;
-            mostrarMenuLobby(); // Vuelve a mostrar el menú para que pueda reintentar
             return;
         }
 
         estat_joc = data;
-        pos_local = { x: null, y: null };
+
+        // --- FORZAR LA POSICIÓN LOCAL AQUÍ MISMO ---
+        if (estat_joc.jugadors && estat_joc.jugadors[el_meu_id]) {
+            pos_local = {
+                x: estat_joc.jugadors[el_meu_id].x,
+                y: estat_joc.jugadors[el_meu_id].y
+            };
+        } else {
+            pos_local = { x: null, y: null };
+        }
 
         await sincronitzarEstat();
+
         dibuixar();
 
     } catch (error) {
+
         console.error('Error al iniciar el juego:', error);
+
     }
 }
 
@@ -360,25 +372,37 @@ function actualitzarMarcador() {
     // Leer los puntos del JSON del servidor (si no existen, poner 0)
     const punts_j1 = (estat_joc.puntuacions && estat_joc.puntuacions[jugador1]) ? estat_joc.puntuacions[jugador1] : 0;
 
-    document.getElementById('nom-esquerra').innerText = jugador1.substring(0, 5);
-    document.getElementById('punts-esquerra').innerText = punts_j1;
+    const elNomEsquerra = document.getElementById('nom-esquerra');
+    const elPuntsEsquerra = document.getElementById('punts-esquerra');
+    if (elNomEsquerra) elNomEsquerra.innerText = jugador1.substring(0, 5);
+    if (elPuntsEsquerra) elPuntsEsquerra.innerText = punts_j1;
+
+    const elNomDreta = document.getElementById('nom-dreta');
+    const elPuntsDreta = document.getElementById('punts-dreta');
 
     if (jugador2) {
         const punts_j2 = (estat_joc.puntuacions && estat_joc.puntuacions[jugador2]) ? estat_joc.puntuacions[jugador2] : 0;
 
-        document.getElementById('nom-dreta').innerText = jugador2.substring(0, 5) + ": ";
-        document.getElementById('nom-dreta').style.color = "red";
-        document.getElementById('nom-dreta').style.fontStyle = "normal";
+        if (elNomDreta) {
+            elNomDreta.innerText = jugador2.substring(0, 5) + ": ";
+            elNomDreta.style.color = "red";
+            elNomDreta.style.fontStyle = "normal";
+        }
         
-        document.getElementById('punts-dreta').style.display = "inline";
-        document.getElementById('punts-dreta').innerText = punts_j2;
+        if (elPuntsDreta) {
+            elPuntsDreta.style.display = "inline";
+            elPuntsDreta.innerText = punts_j2;
+        }
     } else {
-        document.getElementById('nom-dreta').innerText = "Esperando segundo jugador...";
-        document.getElementById('nom-dreta').style.color = "gray";
-        document.getElementById('nom-dreta').style.fontStyle = "italic";
-        document.getElementById('punts-dreta').style.display = "none";
+        if (elNomDreta) {
+            elNomDreta.innerText = "Esperando segundo jugador...";
+            elNomDreta.style.color = "gray";
+            elNomDreta.style.fontStyle = "italic";
+        }
+        if (elPuntsDreta) {
+            elPuntsDreta.style.display = "none";
+        }
     }
 }
-
 // Arrancar el menú al cargar en lugar del antiguo iniciarJoc()
 mostrarMenuLobby();
