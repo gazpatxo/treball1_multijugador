@@ -393,6 +393,10 @@ try {
         $estat['timestamp_victoria'] = 0;
     }
 
+    if (!isset($estat['puntuacions']) || !is_array($estat['puntuacions'])) {
+        $estat['puntuacions'] = [];
+    }
+
     // --------------------------------------------------
     // REGISTRAR JUGADOR
     // --------------------------------------------------
@@ -461,6 +465,12 @@ try {
             $entrada['accio'] === 'reiniciar'
         );
 
+        // Detectar desconexión
+        $is_action_disconnect = (
+            isset($entrada['accio']) &&
+            $entrada['accio'] === 'desconnectar'
+        );
+
         // Movimiento
 
         $is_action_movement = (
@@ -470,7 +480,12 @@ try {
             is_numeric($entrada['y'])
         );
 
-        if ($is_action_reset) {
+        if ($is_action_disconnect) {
+
+            $estat['tancada'] = true;
+            $estat['motiu'] = "L'oponent s'ha desconnectat. La sala es tancarà.";
+
+        } elseif ($is_action_reset) { 
 
             start_match($estat);
 
@@ -523,6 +538,12 @@ try {
 
                     $estat['guanyador'] = $jugador_id;
                     $estat['timestamp_victoria'] = $temps_accio;
+
+                    // Sumar un punto al ganador
+                    if (!isset($estat['puntuacions'][$jugador_id])) {
+                        $estat['puntuacions'][$jugador_id] = 0;
+                    }
+                    $estat['puntuacions'][$jugador_id]++;
                 }
             }
         }

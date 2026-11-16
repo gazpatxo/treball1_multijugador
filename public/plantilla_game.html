@@ -31,6 +31,17 @@
             </div>
             <button id="boto-reiniciar">Tornar a començar</button>
             
+            <!-- Contenedor del marcador -->
+            <div id="marcador-container" style="display: flex; justify-content: space-between; width: 800px; margin-bottom: 10px; font-size: 20px; font-weight: bold;">
+                <div id="jugador-esquerra">
+                    <span id="nom-esquerra" style="color: green;">Jugador 1</span>: <span id="punts-esquerra">0</span>
+                </div>
+                <div id="jugador-dreta">
+                    <span id="nom-dreta" style="font-style: italic; color: gray;">Esperando segundo jugador...</span>
+                    <span id="punts-dreta" style="display: none; color: red;">0</span>
+                </div>
+            </div>
+            
             <canvas id="jocCanvas" width="800" height="600"></canvas>
         </section>
 

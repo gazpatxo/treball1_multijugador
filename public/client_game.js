@@ -15,7 +15,10 @@ let latencia = 0;
 
 let pos_local = { x: null, y: null };
 let havia_guanyador = false; // Per detectar quan hi ha hagut un reinici
-let lobby_code = null; // NUEVO: Variable para guardar el código de la sala
+let lobby_code = null; // Variable para guardar el código de la sala
+
+let puntuacions = {};
+let victoria_registrada = false;
 
 
 // Cambiar a latencia mitjana dels ultims n valors
@@ -42,67 +45,64 @@ async function mesurarLatencia() {
 setInterval(mesurarLatencia, 1000);
 
 async function sincronitzarEstat() {
-    if (!lobby_code) return;
-
+    if (!lobby_code) return; 
     try {
-        const resposta = await fetch(
-            `${SERVER_URL}?lobby=${encodeURIComponent(lobby_code)}&accio=sincronitzar&t=${Date.now()}`,
-            { cache: 'no-store' }
-        );
-
-        if (resposta.status === 410) {
-            alert("La sala ha caducat per inactivitat.");
-            lobby_code = null;
-            estat_joc = null;
-            pos_local = { x: null, y: null };
-            return;
-        }
-
-        if (!resposta.ok) {
-            console.error("Error del servidor:", resposta.status);
-            return;
-        }
-
+        const resposta = await fetch(`${SERVER_URL}?lobby=${encodeURIComponent(lobby_code)}&accio=sincronitzar&t=${Date.now()}`);
+        if (!resposta.ok) return; 
+        
         estat_joc = await resposta.json();
 
-        if (estat_joc.error) {
-            console.error(estat_joc.error);
+        // Añadimos la comprobación de desconexión del oponente
+        if (estat_joc.tancada) {
+            alert(estat_joc.motiu);
+            lobby_code = null;
+            window.location.href = '?page=game';
             return;
         }
-
-        if (
-            pos_local.x === null &&
-            estat_joc.jugadors[el_meu_id]
-        ) {
-            pos_local.x = estat_joc.jugadors[el_meu_id].x;
-            pos_local.y = estat_joc.jugadors[el_meu_id].y;
+        
+        // Actualizamos el marcador visual con los datos que trae el servidor
+        actualitzarMarcador();
+        
+        if (estat_joc.jugadors[el_meu_id]) {
+            // Inicializar si es la primera vez
+            if (pos_local.x === null) {
+                pos_local.x = estat_joc.jugadors[el_meu_id].x;
+                pos_local.y = estat_joc.jugadors[el_meu_id].y;
+            } else {
+                // Si el servidor y el cliente se desincronizan por más de 1 casilla (movimiento rechazado), 
+                // forzamos al cliente a volver a la posición real del servidor
+                const dist_x = Math.abs(pos_local.x - estat_joc.jugadors[el_meu_id].x);
+                const dist_y = Math.abs(pos_local.y - estat_joc.jugadors[el_meu_id].y);
+                
+                if (dist_x > 1 || dist_y > 1) {
+                    pos_local.x = estat_joc.jugadors[el_meu_id].x;
+                    pos_local.y = estat_joc.jugadors[el_meu_id].y;
+                }
+            }
         }
 
         if (estat_joc.guanyador) {
-
-            document.getElementById('missatge-victoria').innerText =
-                "El guanyador és: " + estat_joc.guanyador;
-
+            document.getElementById('missatge-victoria').innerText = "El guanyador és: " + estat_joc.guanyador;
             document.getElementById('boto-reiniciar').style.display = 'block';
-
             havia_guanyador = true;
+            
+            // Eliminamos todo el bloque de 'victoria_registrada' y 'puntuacions' 
+            // porque el servidor (SQLite) ya suma el punto de forma automática.
 
         } else {
-
             document.getElementById('missatge-victoria').innerText = "";
-
             document.getElementById('boto-reiniciar').style.display = 'none';
-
+            
+            // Eliminamos el reseteo de 'victoria_registrada' aquí también.
+            
             if (havia_guanyador) {
                 pos_local = { x: null, y: null };
                 havia_guanyador = false;
             }
         }
-
-    } catch (e) {
-        console.error("Error sincronitzant:", e);
-    }
+    } catch (e) { console.error("Error sincronitzant", e); }
 }
+
 setInterval(sincronitzarEstat, 100); 
 
 // Botó de reiniciar
@@ -249,7 +249,10 @@ function dibuixar() {
             const y_dibuix = (id === el_meu_id && pos_local.y !== null) ? pos_local.y : dades.y;
             ctx.fillRect(x_dibuix*cell_size, y_dibuix*cell_size, dades.size_x*cell_size, dades.size_y*cell_size);
             ctx.fillStyle = 'black';
-            ctx.fillText(id, x_dibuix*cell_size+cell_size/4, y_dibuix*cell_size+cell_size/2);
+            
+            // Limitar el nombre mostrado a los primeros 5 caracteres
+            const nom_mostrat = id.substring(0, 5);
+            ctx.fillText(nom_mostrat, x_dibuix*cell_size+cell_size/4, y_dibuix*cell_size+cell_size/2);
         }
     }
     requestAnimationFrame(dibuixar);
@@ -295,34 +298,32 @@ function hostPartida(){
     iniciarPartidaLobby();
 }
 
-function joinPartida(){
+async function joinPartida(){
     const codi = prompt("Introdueix el codi de la sala:");
     if (codi) {
         lobby_code = codi.toUpperCase();
         
-        // Forma SEGURA de actualizar el HTML
         const displayCode = document.getElementById('display-lobby-code');
         if (displayCode) { displayCode.innerText = lobby_code; }
         
-        iniciarPartidaLobby();
+        // Llamamos con acción 'entrar'
+        await iniciarPartidaLobby('entrar');
     } else {
-        alert("No has introduït cap codi.");
+        alert("No hai introduït cap codi.");
         mostrarMenuLobby();
     }
 }
 
 // Iniciar la partida después de introducir/crear el lobby
-async function iniciarPartidaLobby() {
-
+async function iniciarPartidaLobby(accioType = 'entrar') {
     try {
-
         const resposta = await fetch(SERVER_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                accio: 'entrar',
+                accio: accioType, // Usamos la acción correcta aquí
                 lobby: lobby_code
             })
         });
@@ -332,21 +333,50 @@ async function iniciarPartidaLobby() {
         if (!resposta.ok || data.error) {
             alert("Error: " + (data.error || resposta.status));
             lobby_code = null;
+            mostrarMenuLobby(); // Vuelve a mostrar el menú para que pueda reintentar
             return;
         }
 
         estat_joc = data;
-
         pos_local = { x: null, y: null };
 
         await sincronitzarEstat();
-
         dibuixar();
 
     } catch (error) {
-
         console.error('Error al iniciar el juego:', error);
+    }
+}
 
+
+function actualitzarMarcador() {
+    if (!estat_joc || !estat_joc.jugadors) return;
+    
+    const jugadors_ids = Object.keys(estat_joc.jugadors);
+    
+    let jugador1 = el_meu_id;
+    let jugador2 = jugadors_ids.find(id => id !== el_meu_id);
+
+    // Leer los puntos del JSON del servidor (si no existen, poner 0)
+    const punts_j1 = (estat_joc.puntuacions && estat_joc.puntuacions[jugador1]) ? estat_joc.puntuacions[jugador1] : 0;
+
+    document.getElementById('nom-esquerra').innerText = jugador1.substring(0, 5);
+    document.getElementById('punts-esquerra').innerText = punts_j1;
+
+    if (jugador2) {
+        const punts_j2 = (estat_joc.puntuacions && estat_joc.puntuacions[jugador2]) ? estat_joc.puntuacions[jugador2] : 0;
+
+        document.getElementById('nom-dreta').innerText = jugador2.substring(0, 5) + ": ";
+        document.getElementById('nom-dreta').style.color = "red";
+        document.getElementById('nom-dreta').style.fontStyle = "normal";
+        
+        document.getElementById('punts-dreta').style.display = "inline";
+        document.getElementById('punts-dreta').innerText = punts_j2;
+    } else {
+        document.getElementById('nom-dreta').innerText = "Esperando segundo jugador...";
+        document.getElementById('nom-dreta').style.color = "gray";
+        document.getElementById('nom-dreta').style.fontStyle = "italic";
+        document.getElementById('punts-dreta').style.display = "none";
     }
 }
 
