@@ -15,9 +15,8 @@ $db_connection = 'sqlite:' . $db_Path;
 // URL pública de la pàgina
 define('VERIFY_BASE_URL', 'https://multijugador.khamia.org/index.php');
 
-// Credencials de Brevo (API v3, no la clau SMTP).
-// A Brevo: https://app.brevo.com/settings/keys/api
-define('BREVO_API_KEY', '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');
+// Credencials de Brevo
+define('BREVO_API_KEY', 'xkeysib-...');
 define('BREVO_SENDER_EMAIL', 'algajitablet@gmail.com');
 define('BREVO_SENDER_NAME', 'Practica multijugador Leah Irina Leo');
 
@@ -38,7 +37,9 @@ try {
             user_email VARCHAR(254),
             email_verified INTEGER DEFAULT 0,
             verification_token TEXT,
-            verification_expires INTEGER
+            verification_expires INTEGER,
+            reset_token TEXT,
+            reset_expires INTEGER
         )
     ");
 
@@ -51,11 +52,14 @@ try {
         'user_email' => 'ALTER TABLE users ADD COLUMN user_email VARCHAR(254)',
         'email_verified' => 'ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0',
         'verification_token' => 'ALTER TABLE users ADD COLUMN verification_token TEXT',
-        'verification_expires' => 'ALTER TABLE users ADD COLUMN verification_expires INTEGER'
+        'verification_expires' => 'ALTER TABLE users ADD COLUMN verification_expires INTEGER',
+        'reset_token' => 'ALTER TABLE users ADD COLUMN reset_token TEXT',
+        'reset_expires' => 'ALTER TABLE users ADD COLUMN reset_expires INTEGER'
     ];
 
     foreach ($migrations as $column => $sql) {
-        if (!in_array($column, $columns)) {
+
+        if (!in_array($column, $columns, true)) {
             $db_init->exec($sql);
         }
     }
@@ -67,6 +71,7 @@ try {
 
 }
 
+
 // --------------------------------------------------
 // FUNCIONS
 // --------------------------------------------------
@@ -77,10 +82,16 @@ function verify_session($password) {
 
     $db = new PDO($db_connection);
 
-    $sql = 'SELECT * FROM users WHERE user_name = :user_name';
+    $sql = '
+        SELECT user_password
+        FROM users
+        WHERE user_name = :user_name
+    ';
 
     $query = $db->prepare($sql);
+
     $query->bindValue(':user_name', $_SESSION['user_name']);
+
     $query->execute();
 
     $result_row = $query->fetchObject();
@@ -91,117 +102,59 @@ function verify_session($password) {
 
 
 // --------------------------------------------------
-// ENVIAR CORREU DE VERIFICACIÓ
+// FUNCIÓ GENERAL D'ENVIAMENT AMB BREVO
 // --------------------------------------------------
 
-function send_verification_email($email, $username, $token) {
+function send_brevo_email($email, $username, $subject, $html_content, $text_content) {
 
-    // Comprobar API key
     if (
         empty(BREVO_API_KEY) ||
-        BREVO_API_KEY === '-' ||
         !filter_var(BREVO_SENDER_EMAIL, FILTER_VALIDATE_EMAIL)
     ) {
-        error_log('BREVO ERROR: API KEY o remitente incorrectos.');
+
+        error_log('BREVO ERROR: API KEY o remitent incorrectes.');
         return false;
     }
 
-    // Comprobar cURL
     if (!function_exists('curl_init')) {
-        error_log('BREVO ERROR: cURL no está activado.');
+
+        error_log('BREVO ERROR: cURL no està activat.');
         return false;
     }
 
-    // URL de verificación
-    $verification_url = VERIFY_BASE_URL .
-        '?page=verify&token=' . urlencode($token);
-
-    $safe_username = htmlspecialchars(
-        $username,
-        ENT_QUOTES,
-        'UTF-8'
-    );
-
-    $safe_url = htmlspecialchars(
-        $verification_url,
-        ENT_QUOTES,
-        'UTF-8'
-    );
-
-    // Contenido HTML
-    
-    // Contenido HTML
-    $html_content = '
-    <!DOCTYPE html>
-    <html>
-    <body style="font-family: Arial, sans-serif;">
-        <h2>Benvingut, ' . $safe_username . '!</h2>
-
-        <p>Gràcies per registrar-te.</p>
-
-        <p>Per activar el teu compte, fes clic al següent enllaç:</p>
-
-        <p>
-            <a href="' . $safe_url . '"
-            style="background-color:#198754;
-                    color:white;
-                    padding:12px 20px;
-                    text-decoration:none;
-                    border-radius:5px;
-                    display:inline-block;">
-                VERIFICAR EL MEU COMPTE
-            </a>
-        </p>
-
-        <p>Si el botó no funciona, copia aquest enllaç al navegador:</p>
-
-        <p>' . $safe_url . '</p>
-
-        <p>Aquest enllaç caduca en 24 hores.</p>
-    </body>
-    </html>
-    ';
-
-    // Contenido de texto plano
-    $text_content =
-        "Benvingut {$username}!\n\n" .
-        "Per verificar el teu compte, obre aquest enllaç:\n\n" .
-        $verification_url . "\n\n" .
-        "Aquest enllaç caduca en 24 hores.";
-
-
-    // Datos para Brevo
     $payload = [
         'sender' => [
             'name' => BREVO_SENDER_NAME,
             'email' => BREVO_SENDER_EMAIL
         ],
+
         'to' => [
             [
                 'email' => $email,
                 'name' => $username
             ]
         ],
-        'subject' => 'Verifica el teu compte',
+
+        'subject' => $subject,
         'htmlContent' => $html_content,
         'textContent' => $text_content
     ];
 
-    // Convertir a JSON
     $json = json_encode(
         $payload,
         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
     );
 
     if ($json === false) {
+
         error_log('BREVO JSON ERROR: ' . json_last_error_msg());
         return false;
     }
 
-    // Crear petición
     $ch = curl_init('https://api.brevo.com/v3/smtp/email');
 
     curl_setopt_array($ch, [
+
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
 
@@ -218,9 +171,9 @@ function send_verification_email($email, $username, $token) {
 
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2
+
     ]);
 
-    // Ejecutar petición
     $response = curl_exec($ch);
 
     $curl_error = curl_error($ch);
@@ -233,7 +186,6 @@ function send_verification_email($email, $username, $token) {
 
     curl_close($ch);
 
-    // Error de conexión
     if ($response === false) {
 
         error_log(
@@ -244,19 +196,176 @@ function send_verification_email($email, $username, $token) {
         return false;
     }
 
-    // Registrar respuesta HTTP
     error_log(
         'BREVO HTTP STATUS: ' . $http_code .
         ' RESPONSE: ' . $response
     );
 
-    // Comprobar respuesta
-    if ($http_code < 200 || $http_code >= 300) {
-        return false;
-    }
-
-    return true;
+    return $http_code >= 200 && $http_code < 300;
 }
+
+
+// --------------------------------------------------
+// ENVIAR CORREU DE VERIFICACIÓ
+// --------------------------------------------------
+
+function send_verification_email($email, $username, $token) {
+
+    $verification_url = VERIFY_BASE_URL .
+        '?page=verify&token=' . urlencode($token);
+
+    $safe_username = htmlspecialchars(
+        $username,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
+    $safe_url = htmlspecialchars(
+        $verification_url,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
+    $html_content = '
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial, sans-serif;">
+
+        <h2>Benvingut, ' . $safe_username . '!</h2>
+
+        <p>Gràcies per registrar-te.</p>
+
+        <p>Per activar el teu compte, fes clic al següent enllaç:</p>
+
+        <p>
+            <a href="' . $safe_url . '"
+            style="background-color:#198754;
+                   color:white;
+                   padding:12px 20px;
+                   text-decoration:none;
+                   border-radius:5px;
+                   display:inline-block;">
+                VERIFICAR EL MEU COMPTE
+            </a>
+        </p>
+
+        <p>Si el botó no funciona, copia aquest enllaç al navegador:</p>
+
+        <p>' . $safe_url . '</p>
+
+        <p>Aquest enllaç caduca en 24 hores.</p>
+
+    </body>
+    </html>
+    ';
+
+    $text_content =
+        "Benvingut {$username}!\n\n" .
+        "Per verificar el teu compte, obre aquest enllaç:\n\n" .
+        $verification_url . "\n\n" .
+        "Aquest enllaç caduca en 24 hores.";
+
+    return send_brevo_email(
+        $email,
+        $username,
+        'Verifica el teu compte',
+        $html_content,
+        $text_content
+    );
+}
+
+
+// --------------------------------------------------
+// ENVIAR CORREU DE RECUPERACIÓ DE CONTRASENYA
+// --------------------------------------------------
+
+function send_password_reset_email($email, $username, $token) {
+
+    $reset_url = VERIFY_BASE_URL .
+        '?page=reset&token=' . urlencode($token);
+
+    $safe_username = htmlspecialchars(
+        $username,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
+    $safe_url = htmlspecialchars(
+        $reset_url,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
+    $html_content = '
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial, sans-serif;">
+
+        <h2>Hola, ' . $safe_username . '!</h2>
+
+        <p>Hem rebut una sol·licitud per canviar la contrasenya
+        del teu compte.</p>
+
+        <p>Per establir una nova contrasenya, fes clic aquí:</p>
+
+        <p>
+            <a href="' . $safe_url . '"
+            style="background-color:#0d6efd;
+                   color:white;
+                   padding:12px 20px;
+                   text-decoration:none;
+                   border-radius:5px;
+                   display:inline-block;">
+                CANVIAR LA CONTRASENYA
+            </a>
+        </p>
+
+        <p>Si el botó no funciona, copia aquest enllaç:</p>
+
+        <p>' . $safe_url . '</p>
+
+        <p>Aquest enllaç caduca en una hora.</p>
+
+        <p>Si no has sol·licitat aquest canvi, ignora aquest correu.</p>
+
+    </body>
+    </html>
+    ';
+
+    $text_content =
+        "Hola {$username}!\n\n" .
+        "Hem rebut una sol·licitud per canviar la contrasenya.\n\n" .
+        "Obre aquest enllaç per establir-ne una de nova:\n\n" .
+        $reset_url . "\n\n" .
+        "Aquest enllaç caduca en una hora.\n\n" .
+        "Si no has sol·licitat aquest canvi, ignora aquest correu.";
+
+    return send_brevo_email(
+        $email,
+        $username,
+        'Recuperació de contrasenya',
+        $html_content,
+        $text_content
+    );
+}
+
+
+// --------------------------------------------------
+// VALIDAR CONTRASENYA
+// --------------------------------------------------
+
+function valid_password($password) {
+
+    return
+        strlen($password) >= 15 &&
+        strlen($password) <= 64 &&
+        preg_match(
+            '/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]+$/',
+            $password
+        );
+}
+
+
 // --------------------------------------------------
 // CONFIGURACIÓ DE PLANTILLES
 // --------------------------------------------------
@@ -290,7 +399,10 @@ $configuration = array(
     '{PLAYER_ID}'        => '',
     '{PLAYER_ID_JS}'     => '""',
 
+    '{RESET_TOKEN}'      => '',
+
     '{SITE_NAME}'        => 'La meva pàgina'
+
 );
 
 
@@ -320,8 +432,10 @@ if (isset($_SESSION['user_name'])) {
 // VERIFICACIÓ DEL CORREU ELECTRÒNIC
 // --------------------------------------------------
 
-if (isset($parameters['page']) &&
-    $parameters['page'] == 'verify') {
+if (
+    isset($parameters['page']) &&
+    $parameters['page'] == 'verify'
+) {
 
     $token = $parameters['token'] ?? '';
 
@@ -391,11 +505,266 @@ if (isset($parameters['page']) &&
 
 if (!isset($_SESSION['user_name'])) {
 
+
+    // ----------------------------------------------
+    // SOL·LICITAR RECUPERACIÓ DE CONTRASENYA
+    // ----------------------------------------------
+
+    if (isset($parameters['forgot_password'])) {
+
+        $username = trim($parameters['user_name'] ?? '');
+
+        $template = 'forgot_password';
+
+        if (
+            empty($username) ||
+            strlen($username) > 64
+        ) {
+
+            $configuration['{FEEDBACK}'] =
+                '<mark>Introdueix un nom d\'usuari vàlid.</mark>';
+
+        } else {
+
+            $db = new PDO($db_connection);
+
+            $sql = '
+                SELECT user_name, user_email, email_verified
+                FROM users
+                WHERE user_name = :user_name
+            ';
+
+            $query = $db->prepare($sql);
+
+            $query->bindValue(':user_name', $username);
+
+            $query->execute();
+
+            $user = $query->fetchObject();
+
+            if ($user && !empty($user->user_email)) {
+                if ($user->email_verified !== 1){
+                    $configuration['{FEEDBACK}'] = '<mark>El compte existeix, pero no té el correu verificat</mark>';
+                }else{
+                
+                    // Generar token aleatori
+                    $token = bin2hex(random_bytes(32));
+
+                    // Guardar només el hash
+                    $token_hash = hash('sha256', $token);
+
+                    // Caducitat d'una hora
+                    $expires = time() + 3600;
+
+                    $sql = '
+                        UPDATE users
+                        SET reset_token = :token,
+                            reset_expires = :expires
+                        WHERE user_name = :user_name
+                    ';
+
+                    $query = $db->prepare($sql);
+
+                    $query->bindValue(':token', $token_hash);
+                    $query->bindValue(':expires', $expires);
+                    $query->bindValue(':user_name', $user->user_name);
+
+                    if ($query->execute()) {
+                        if (
+                            !send_password_reset_email(
+                                $user->user_email,
+                                $user->user_name,
+                                $token
+                            )
+                        ) {
+
+                            error_log(
+                                'No s\'ha pogut enviar el correu de recuperació.'
+                            );
+                        }else{
+                            $configuration['{FEEDBACK}'] =
+                                    '<mark>Rebràs un missatge amb les instruccions per recuperar la contrasenya.</mark>';
+                        }
+                    }
+
+
+                }
+                
+
+            }else{
+                $configuration['{FEEDBACK}'] = '<mark>El compte no existeix</mark>';
+            }            
+        }
+
+
+    // ----------------------------------------------
+    // CANVIAR CONTRASENYA AMB TOKEN
+    // ----------------------------------------------
+
+    } else if (isset($parameters['reset_password'])) {
+
+        $token = $parameters['token'] ?? '';
+
+        $password = $parameters['user_password'] ?? '';
+
+        $template = 'reset_password';
+
+        $configuration['{RESET_TOKEN}'] =
+            htmlspecialchars($token, ENT_QUOTES, 'UTF-8');
+
+        if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
+
+            $configuration['{FEEDBACK}'] =
+                '<mark>L\'enllaç de recuperació no és vàlid.</mark>';
+
+        } else if (!valid_password($password)) {
+
+            $configuration['{FEEDBACK}'] =
+                '<mark>La contrasenya ha de tenir entre 15 i 64 ' .
+                'caràcters i contenir lletres i números.</mark>';
+
+        } else {
+
+            $db = new PDO($db_connection);
+
+            $token_hash = hash('sha256', $token);
+
+            // Comprovar token i caducitat
+
+            $sql = '
+                SELECT user_name
+                FROM users
+                WHERE reset_token = :token
+                AND reset_expires > :now
+            ';
+
+            $query = $db->prepare($sql);
+
+            $query->bindValue(':token', $token_hash);
+            $query->bindValue(':now', time());
+
+            $query->execute();
+
+            $user = $query->fetchObject();
+
+            if ($user) {
+
+                $hashed_password = password_hash(
+                    $password,
+                    PASSWORD_DEFAULT
+                );
+
+                // Actualitzar contrasenya i invalidar token
+
+                $sql = '
+                    UPDATE users
+                    SET user_password = :password,
+                        reset_token = NULL,
+                        reset_expires = NULL
+                    WHERE user_name = :user_name
+                    AND reset_token = :token
+                    AND reset_expires > :now
+                ';
+
+                $query = $db->prepare($sql);
+
+                $query->bindValue(':password', $hashed_password);
+                $query->bindValue(':user_name', $user->user_name);
+                $query->bindValue(':token', $token_hash);
+                $query->bindValue(':now', time());
+
+                $query->execute();
+
+                if ($query->rowCount() === 1) {
+
+                    $template = 'login';
+
+                    $configuration['{RESET_TOKEN}'] = '';
+
+                    $configuration['{FEEDBACK}'] =
+                        '<mark>Contrasenya actualitzada correctament! ' .
+                        'Ja pots iniciar sessió.</mark>';
+
+                } else {
+
+                    $configuration['{FEEDBACK}'] =
+                        '<mark>L\'enllaç ha caducat o ja s\'ha utilitzat.</mark>';
+                }
+
+            } else {
+
+                $configuration['{FEEDBACK}'] =
+                    '<mark>L\'enllaç de recuperació no és vàlid ' .
+                    'o ha caducat.</mark>';
+            }
+        }
+
+
+    // ----------------------------------------------
+    // MOSTRAR PÀGINA DE RECUPERACIÓ
+    // ----------------------------------------------
+
+    } else if ( isset($parameters['page']) && $parameters['page'] == 'forgot'
+    ) {
+
+        $template = 'forgot_password';
+
+
+    // ----------------------------------------------
+    // MOSTRAR FORMULARI DE CANVI DE CONTRASENYA
+    // ----------------------------------------------
+
+    } else if (isset($parameters['page']) && $parameters['page'] == 'reset'
+    ) {
+
+        $template = 'reset_password';
+
+        $token = $parameters['token'] ?? '';
+
+        $configuration['{RESET_TOKEN}'] =
+            htmlspecialchars($token, ENT_QUOTES, 'UTF-8');
+
+        if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
+
+            $configuration['{FEEDBACK}'] =
+                '<mark>Enllaç de recuperació no vàlid.</mark>';
+
+        } else {
+
+            $db = new PDO($db_connection);
+
+            $sql = '
+                SELECT user_name
+                FROM users
+                WHERE reset_token = :token
+                AND reset_expires > :now
+            ';
+
+            $query = $db->prepare($sql);
+
+            $query->bindValue(
+                ':token',
+                hash('sha256', $token)
+            );
+
+            $query->bindValue(':now', time());
+
+            $query->execute();
+
+            if (!$query->fetchObject()) {
+
+                $configuration['{FEEDBACK}'] =
+                    '<mark>L\'enllaç ha caducat o ja s\'ha utilitzat. ' .
+                    'Sol·licita una nova recuperació.</mark>';
+            }
+        }
+
+
     // ----------------------------------------------
     // REGISTRE
     // ----------------------------------------------
 
-    if (isset($parameters['register'])) {
+    } else if (isset($parameters['register'])) {
 
         $username = trim($parameters['user_name'] ?? '');
         $password = $parameters['user_password'] ?? '';
@@ -421,11 +790,7 @@ if (!isset($_SESSION['user_name'])) {
 
         // Validació de la contrasenya
 
-        } else if (
-            strlen($password) < 15 ||
-            strlen($password) > 64 ||
-            !preg_match('/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]+$/', $password)
-        ) {
+        } else if (!valid_password($password)) {
 
             $configuration['{FEEDBACK}'] =
                 '<mark>ERROR: La contrasenya ha de tenir entre 15 i 64 ' .
@@ -482,7 +847,7 @@ if (!isset($_SESSION['user_name'])) {
 
                 $hashed_password = password_hash(
                     $password,
-                    PASSWORD_BCRYPT
+                    PASSWORD_DEFAULT
                 );
 
                 // Generar token segur
@@ -667,6 +1032,7 @@ if (!isset($_SESSION['user_name'])) {
 
 } else {
 
+
     // ----------------------------------------------
     // ACTUALITZAR ÀLIES
     // ----------------------------------------------
@@ -788,6 +1154,7 @@ if (!isset($_SESSION['user_name'])) {
                 $query->bindValue(':user_email', $new_email);
                 $query->bindValue(':token', $token_hash);
                 $query->bindValue(':expires', $expires);
+
                 $query->bindValue(
                     ':user_name',
                     $_SESSION['user_name']
@@ -900,14 +1267,29 @@ if (isset($parameters['page'])) {
         );
 
         $configuration_game = array(
-            '{PLAYER_ID}' => htmlspecialchars($jugador_id, ENT_QUOTES, 'UTF-8'),
-            '{PLAYER_ID_JS}' => json_encode($jugador_id),
-            '{SITE_NAME}' => $configuration['{SITE_NAME}'],
-            '{FEEDBACK}' => $configuration['{FEEDBACK}']
+
+            '{PLAYER_ID}' =>
+                htmlspecialchars($jugador_id, ENT_QUOTES, 'UTF-8'),
+
+            '{PLAYER_ID_JS}' =>
+                json_encode($jugador_id),
+
+            '{SITE_NAME}' =>
+                $configuration['{SITE_NAME}'],
+
+            '{FEEDBACK}' =>
+                $configuration['{FEEDBACK}']
+
         );
 
         $html_game = file_get_contents('plantilla_game.html', true);
-        $html_game = str_replace(array_keys($configuration_game), array_values($configuration_game), $html_game);
+
+        $html_game = str_replace(
+            array_keys($configuration_game),
+            array_values($configuration_game),
+            $html_game
+        );
+
         echo $html_game;
 
         exit;
@@ -959,6 +1341,7 @@ if (
 // --------------------------------------------------
 
 if (isset($_SESSION['user_name'])) {
+
     $configuration['{LOGIN_LOGOUT_TEXT}'] =
         'Tancar sessió';
 
@@ -968,6 +1351,7 @@ if (isset($_SESSION['user_name'])) {
     $configuration['{REGISTER_SECTION}'] = '';
 
     $configuration['{PROFILE_SECTION}'] =
+
         '<section><div>' .
         '<a href="?page=profile">Configuració del perfil</a>' .
         '</div></section>' .
@@ -975,13 +1359,26 @@ if (isset($_SESSION['user_name'])) {
         '<section><div>' .
         '<a href="?page=game">Entrar al Joc Multijugador</a>' .
         '</div></section>';
-    
-    if ($template == 'home' && empty($configuration['{FEEDBACK}'])) {
-        // Leer el parámetro de la URL para mostrar el mensaje de desconexión
-        if (isset($_GET['msg']) && $_GET['msg'] === 'desconnectat') {
-            $configuration['{FEEDBACK}'] = '<mark>Rival desconectat, tancament de la sala</mark>';
+
+    if (
+        $template == 'home' &&
+        empty($configuration['{FEEDBACK}'])
+    ) {
+
+        if (
+            isset($_GET['msg']) &&
+            $_GET['msg'] === 'desconnectat'
+        ) {
+
+            $configuration['{FEEDBACK}'] =
+                '<mark>Rival desconectat, tancament de la sala</mark>';
+
         } else {
-            $configuration['{FEEDBACK}'] = 'Sessió iniciada com <b>' . htmlentities($_SESSION['user_name']) . '</b>';
+
+            $configuration['{FEEDBACK}'] =
+                'Sessió iniciada com <b>' .
+                htmlentities($_SESSION['user_name']) .
+                '</b>';
         }
     }
 }
@@ -997,8 +1394,9 @@ $html = file_get_contents(
 
 if ($html === false) {
 
-    die('No s\'ha pogut carregar la plantilla.');
+    error_log('No s\'ha pogut carregar plantilla_' . $template . '.html');
 
+    die('No s\'ha pogut carregar la plantilla.');
 }
 
 $html = str_replace(

@@ -243,11 +243,10 @@ function movimiento_valido($estat, $id, $x_nuevo, $y_nuevo) {
     $distancia_y = abs($y_nuevo - $y_anterior);
 
     // Solo permitir desplazamiento de una casilla
-    // en horizontal O vertical, nunca en ambas direcciones.
+    // en horizontal, vertical o en ambas direcciones.
     return (
-        ($distancia_x === 1 && $distancia_y === 0) ||
-        ($distancia_x === 0 && $distancia_y === 1) ||
-        ($distancia_x === 0 && $distancia_y === 0)
+        ($distancia_x === 1 || $distancia_x === 0) &&
+        ($distancia_y === 1 || $distancia_y === 0)
     );
 }
 
